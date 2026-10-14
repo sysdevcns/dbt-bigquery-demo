@@ -1,0 +1,109 @@
+version: 2
+
+models:
+  - name: stg_thelook__order_items
+    description: >
+      Itens de pedido padronizados (camada Raw/Bronze). Grão: 1 linha por item.
+      Em target dev lê apenas os últimos dev_lookback_days dias.
+    columns:
+      - name: order_item_id
+        description: Chave primária do item de pedido.
+        data_tests:
+          - unique
+          - not_null
+      - name: order_id
+        description: Identificador do pedido (vários itens por pedido).
+        data_tests:
+          - not_null
+      - name: user_id
+        description: Cliente do pedido.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__users')
+                field: user_id
+      - name: product_id
+        description: Produto vendido.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stg_thelook__products')
+                field: product_id
+      - name: order_item_status
+        description: Situação do item, normalizada em minúsculas.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['complete', 'shipped', 'processing', 'cancelled', 'returned']
+      - name: sale_price
+        description: Preço de venda do item.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
+      - name: ordered_at
+        description: Timestamp do pedido.
+        data_tests:
+          - not_null
+      - name: delivered_at
+        description: Timestamp da entrega (nulo se ainda não entregue).
+        data_tests:
+          - date_not_before:
+              arguments:
+                compared_to: shipped_at
+              config:
+                severity: warn
+
+  - name: stg_thelook__users
+    description: "Clientes padronizados (camada Raw/Bronze). Grão: 1 linha por cliente."
+    columns:
+      - name: user_id
+        description: Chave primária do cliente.
+        data_tests:
+          - unique
+          - not_null
+      - name: email
+        description: E-mail em minúsculas.
+        data_tests:
+          - not_null
+      - name: gender
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['m', 'f']
+      - name: country
+        description: País padronizado pelo macro standardize_country.
+      - name: registered_at
+        description: Timestamp de cadastro.
+        data_tests:
+          - not_null
+
+  - name: stg_thelook__products
+    description: "Catálogo de produtos padronizado (camada Raw/Bronze). Grão: 1 linha por produto."
+    columns:
+      - name: product_id
+        data_tests:
+          - unique
+          - not_null
+      - name: cost
+        description: Custo unitário do produto.
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
+      - name: retail_price
+        description: Preço de tabela.
+        data_tests:
+          - not_null
+      - name: department
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Men', 'Women']

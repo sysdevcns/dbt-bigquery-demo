@@ -1,0 +1,51 @@
+version: 2
+
+sources:
+  - name: thelook_ecommerce
+    description: >
+      Dataset público do BigQuery com dados sintéticos de um e-commerce fictício (The Look).
+      É a camada Raw/Bronze deste projeto: nenhum dado é copiado, o dbt lê direto da fonte.
+    database: bigquery-public-data
+    schema: thelook_ecommerce
+    loader: Google (dataset público)
+    config:
+      loaded_at_field: created_at
+      freshness:
+        warn_after: {count: 30, period: day}
+    tables:
+      - name: order_items
+        description: "Itens de pedido (grão: 1 linha por item vendido). Tabela de fato bruta."
+        columns:
+          - name: id
+            description: Chave primária do item.
+            data_tests:
+              - unique
+              - not_null
+          - name: order_id
+            description: Pedido ao qual o item pertence.
+          - name: user_id
+            description: Cliente que fez o pedido.
+          - name: product_id
+            description: Produto vendido.
+          - name: status
+            description: Situação do item (Complete, Shipped, Processing, Cancelled, Returned).
+          - name: sale_price
+            description: Preço de venda praticado.
+          - name: created_at
+            description: Timestamp do pedido.
+      - name: users
+        description: Cadastro de clientes.
+        columns:
+          - name: id
+            data_tests:
+              - unique
+              - not_null
+      - name: products
+        description: Catálogo de produtos com custo e preço de tabela.
+        config:
+          freshness: null  # catálogo não tem campo de carga confiável; desliga o freshness aqui
+        columns:
+          - name: id
+            data_tests:
+              - unique
+              - not_null
