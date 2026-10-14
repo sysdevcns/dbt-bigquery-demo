@@ -1,0 +1,125 @@
+version: 2
+
+models:
+  - name: fct_order_items
+    description: >
+      Camada Curated/Gold. Fato no grão de item de pedido, incremental e particionada por
+      order_date, clusterizada por status e categoria. Fonte única de verdade para receita.
+    columns:
+      - name: order_item_id
+        description: Chave primária.
+        data_tests:
+          - unique
+          - not_null
+      - name: order_id
+        data_tests:
+          - not_null
+      - name: user_id
+        description: Cliente; toda linha deve existir em dim_customers.
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_customers')
+                field: user_id
+      - name: order_date
+        description: Chave de partição (dia).
+        data_tests:
+          - not_null
+      - name: order_item_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['complete', 'shipped', 'processing', 'cancelled', 'returned']
+      - name: net_revenue
+        description: Receita líquida reconhecida.
+        data_tests:
+          - not_null
+      - name: gross_margin_pct
+        description: Margem bruta percentual (pode ser negativa em itens vendidos abaixo do custo).
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: -5
+                max_value: 1
+              config:
+                severity: warn
+
+  - name: dim_customers
+    description: >
+      Camada Curated/Gold. Dimensão de clientes com métricas de ciclo de vida e segmentação.
+      Particionada por mês de cadastro e clusterizada por país e segmento.
+    columns:
+      - name: user_id
+        description: Chave primária.
+        data_tests:
+          - unique
+          - not_null
+      - name: email
+        data_tests:
+          - not_null
+      - name: region
+        description: Região geográfica derivada do seed country_regions.
+        data_tests:
+          - not_null
+      - name: registered_month
+        description: Chave de partição (mês de cadastro).
+        data_tests:
+          - not_null
+      - name: customer_segment
+        description: prospect (sem pedidos), new (1 pedido), returning (2+), vip (receita >= 500).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['prospect', 'new', 'returning', 'vip']
+      - name: total_orders
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
+      - name: lifetime_net_revenue
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
+
+  - name: mart_daily_revenue
+    description: >
+      Camada Curated/Gold (domínio financeiro). Receita, devoluções, cancelamentos e margem
+      por dia, departamento e categoria. Particionada por order_date e clusterizada por
+      departamento e categoria.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns:
+              - order_date
+              - product_department
+              - product_category
+    columns:
+      - name: daily_revenue_key
+        description: Chave substituta (hash da combinação de grão).
+        data_tests:
+          - unique
+          - not_null
+      - name: order_date
+        data_tests:
+          - not_null
+      - name: product_department
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['Men', 'Women', 'Unknown']
+      - name: net_revenue
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
+      - name: gross_revenue
+        description: Soma de sale_price de todos os itens (inclui cancelados e devolvidos).
+        data_tests:
+          - not_null

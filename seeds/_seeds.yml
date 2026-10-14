@@ -1,0 +1,16 @@
+version: 2
+
+seeds:
+  - name: country_regions
+    description: Mapeamento estático de país para região, usado em dim_customers.
+    columns:
+      - name: country
+        data_tests:
+          - unique
+          - not_null
+      - name: region
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['North America', 'Latin America', 'Europe', 'Asia Pacific']
