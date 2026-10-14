@@ -1,0 +1,45 @@
+# CI mínima: valida que o projeto dbt compila (dbt parse) a cada push/PR.
+# Não precisa de credenciais: dbt parse não conecta ao BigQuery.
+# Para rodar `dbt build` em CI, adicione um secret com a chave de uma service account
+# e troque method/keyfile no profiles.yml gerado abaixo.
+name: dbt-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  parse:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar dbt-bigquery
+        run: pip install -r requirements.txt
+
+      - name: Gerar profiles.yml de CI (sem credenciais)
+        run: |
+          cat > profiles.yml <<'YML'
+          dbt_bigquery_demo:
+            target: ci
+            outputs:
+              ci:
+                type: bigquery
+                method: oauth
+                project: ci-placeholder
+                dataset: ci_placeholder
+                location: US
+                threads: 1
+          YML
+
+      - name: dbt deps
+        run: dbt deps --profiles-dir .
+
+      - name: dbt parse
+        run: dbt parse --profiles-dir . --target ci
