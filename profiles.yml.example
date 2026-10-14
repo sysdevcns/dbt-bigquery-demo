@@ -1,0 +1,35 @@
+# Copie este arquivo para profiles.yml (na raiz do projeto ou em ~/.dbt/) e preencha
+# com o seu projeto GCP. profiles.yml está no .gitignore e nunca deve ser versionado.
+#
+# Autenticação recomendada para o sandbox (sem chave JSON):
+#   gcloud auth application-default login
+#
+# Para CI/produção, use uma service account com method: service-account e aponte
+# keyfile para um arquivo fora do repositório (ou method: service-account-json via env var).
+
+dbt_bigquery_demo:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth                      # usa as Application Default Credentials do gcloud
+      project: seu-projeto-gcp           # ID do projeto (não o nome) criado no sandbox do BigQuery
+      dataset: dbt_sidney                # dataset "base"; o dbt cria dbt_sidney_staging, _intermediate, _marts, _seeds
+      location: US                       # obrigatório: bigquery-public-data.thelook_ecommerce fica na multi-região US
+      threads: 4
+      timeout_seconds: 300
+      priority: interactive
+      job_retries: 1
+      maximum_bytes_billed: 2000000000   # trava de segurança: 2 GB por query (o sandbox dá 1 TB/mês grátis)
+
+    prod:
+      type: bigquery
+      method: service-account
+      project: seu-projeto-gcp
+      dataset: analytics
+      location: US
+      threads: 8
+      keyfile: /caminho/fora/do/repo/service-account.json
+      timeout_seconds: 600
+      priority: batch
+      job_retries: 2

@@ -1,0 +1,64 @@
+# Projeto dbt de demonstração: BigQuery + arquitetura em camadas (Raw / Cleansed / Curated).
+# Fonte: dataset público bigquery-public-data.thelook_ecommerce (e-commerce sintético).
+
+name: 'dbt_bigquery_demo'
+version: '1.0.0'
+config-version: 2
+
+profile: 'dbt_bigquery_demo'
+
+require-dbt-version: ">=1.10.0"
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets:
+  - "target"
+  - "dbt_packages"
+
+flags:
+  send_anonymous_usage_stats: false
+
+vars:
+  # Em ambiente de dev, os modelos de staging de fatos só leem os últimos N dias
+  # (ver macro limit_data_in_dev). Sobrescreva com --vars '{dev_lookback_days: 3650}'.
+  dev_lookback_days: 365
+  # Janela de reprocessamento dos modelos incrementais (partições reescritas a cada run).
+  incremental_lookback_days: 3
+
+models:
+  dbt_bigquery_demo:
+    # Camada Raw / Bronze -> views finas sobre as fontes (renomeia, tipa, padroniza)
+    staging:
+      +materialized: view
+      +schema: staging
+      +tags: ["raw", "bronze"]
+    # Camada Cleansed / Silver -> regras de negócio e enriquecimento, ainda sem agregação final
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+      +tags: ["cleansed", "silver"]
+    # Camada Curated / Gold -> fatos, dimensões e agregados prontos para consumo (BI, finanças)
+    marts:
+      +materialized: table
+      +schema: marts
+      +tags: ["curated", "gold"]
+      +persist_docs:
+        relation: true
+        columns: true
+
+seeds:
+  dbt_bigquery_demo:
+    +schema: seeds
+    country_regions:
+      +column_types:
+        country: string
+        region: string
+
+data_tests:
+  dbt_bigquery_demo:
+    +store_failures: false

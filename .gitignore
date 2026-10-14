@@ -1,0 +1,27 @@
+# Credenciais e perfis locais (NUNCA versionar)
+profiles.yml
+*.json
+!package-lock.json
+.env
+.env.*
+*service-account*
+*credentials*
+
+# Artefatos do dbt
+target/
+dbt_packages/
+dbt_modules/
+logs/
+package-lock.yml
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+
+# IDE / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
