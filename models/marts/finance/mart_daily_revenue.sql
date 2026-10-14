@@ -3,14 +3,16 @@
 --
 -- Particionada por order_date e clusterizada por departamento/categoria: um dashboard que
 -- filtra "últimos 90 dias" e agrupa por categoria lê só 90 partições e blocos já ordenados.
+-- No sandbox do BigQuery (ver macro is_sandbox) fica sem particionamento, pela expiração
+-- de 60 dias por partição.
 {{
     config(
         materialized='table',
-        partition_by={
+        partition_by=(none if is_sandbox() else {
             'field': 'order_date',
             'data_type': 'date',
             'granularity': 'day'
-        },
+        }),
         cluster_by=['product_department', 'product_category']
     )
 }}

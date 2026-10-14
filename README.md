@@ -131,6 +131,16 @@ seed `seeds/country_regions.csv`.
 - Granularidade mensal em vez de diária na dimensão evita o limite de 4.000 partições por tabela e
   partições minúsculas (anti-padrão no BigQuery).
 
+### Sandbox: particionamento desligado em dev
+
+O sandbox gratuito impõe expiração de 60 dias por partição e não permite alterar isso sem faturamento.
+Na primeira execução deste projeto a dimensão de clientes ficou com 5 mil linhas em vez de 100 mil e o
+teste de integridade entre fato e dimensão falhou: as partições antigas foram descartadas na gravação.
+A solução foi o macro `macros/is_sandbox.sql`: quando o alvo é o sandbox (padrão no target `dev`), os marts
+são criados sem `partition_by` e `fct_order_items` é materializado como `table`; fora do sandbox valem as
+decisões de particionamento e o incremental descritos acima. Para testar o modo completo em um projeto
+com faturamento: `dbt build --profiles-dir . --vars '{bigquery_sandbox: false}'`.
+
 ### Clustering
 
 - Depois da partição, as colunas mais usadas em `WHERE` e `GROUP BY` viram colunas de cluster. Na fato:
@@ -165,7 +175,7 @@ Todos rodam com `dbt test` (ou `dbt build`, que intercala run e test na ordem do
 | `accepted_values` | `order_item_status`, `order_status`, `customer_segment`, `product_department`, `gender`, `region`. |
 | `dbt_utils` | `accepted_range` (preços e receita >= 0, margem % entre -5 e 1), `unique_combination_of_columns` no grão do mart diário. |
 | **Teste genérico customizado** | `tests/generic/test_date_not_before.sql`: garante que `delivered_at` nunca é anterior a `shipped_at`. Reutilizável em qualquer par de colunas via YAML (`compared_to:`). Severidade `warn` porque a fonte é sintética. |
-| **Testes singulares** | `tests/assert_daily_revenue_reconciles_with_fact.sql`: a receita líquida do mart diário tem que bater com a soma da fato (tolerância 0,01). `tests/assert_no_future_orders.sql`: nenhum pedido no futuro. |
+| **Testes singulares** | `tests/assert_daily_revenue_reconciles_with_fact.sql`: a receita líquida do mart diário tem que bater com a soma da fato (tolerância 0,01). `tests/assert_no_future_orders.sql`: nenhum pedido no futuro (severidade `warn`, porque o gerador do dataset sintético cria pedidos alguns dias à frente da data atual). |
 | Freshness da fonte | `dbt source freshness` avisa se o `created_at` mais recente de `order_items` tiver mais de 30 dias. |
 
 Por que isso importa: os testes são a "especificação executável" do contrato de dados. Um refactor que perca
@@ -356,7 +366,8 @@ dos modelos que documentam; nomes de staging seguem `stg_<fonte>__<entidade>`.
 | Limitação do sandbox | Impacto | Como o projeto lida |
 |---|---|---|
 | Sem DML (`MERGE`, `UPDATE`, `DELETE`) | Estratégias incrementais `merge` e `insert_overwrite` padrão falham | `fct_order_items` usa `insert_overwrite` com `copy_partitions: true` (API de cópia, sem DML). Se preferir, troque para `materialized='table'`. |
-| Tabelas e partições expiram em 60 dias | Os marts somem se o projeto ficar parado | Basta rodar `dbt build` de novo; tudo é reconstruível a partir da fonte. Em produção, remova a expiração padrão do dataset. |
+| Partições expiram em 60 dias (não configurável no sandbox) | Em tabela particionada por data, as partições com mais de 60 dias são descartadas na própria gravação: a dimensão perderia todo cliente antigo e a fato, todo o histórico | Macro `is_sandbox()`: em `dev` os marts são materializados sem particionamento (só clustering) e `fct_order_items` vira `table` em vez de incremental. Fora do sandbox (`--vars '{bigquery_sandbox: false}'` ou target `prod`) valem partição e incremental. |
+| Tabelas expiram em 60 dias | Os marts somem se o projeto ficar parado | Basta rodar `dbt build` de novo; tudo é reconstruível a partir da fonte. Em produção, remova a expiração padrão do dataset. |
 | 1 TB de consulta por mês | Cota compartilhada com suas outras consultas | Marts particionados, `maximum_bytes_billed` de 2 GB por query no profile e filtro de 365 dias em dev. |
 | 10 GB de armazenamento | Pouco espaço para cópias | Staging e intermediate são views; só os marts ocupam espaço (menos de 200 MB). |
 | Sem streaming nem Data Transfer | Não afeta | O projeto só lê dados públicos já carregados. |

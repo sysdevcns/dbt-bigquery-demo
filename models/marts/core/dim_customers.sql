@@ -5,14 +5,16 @@
 --     safra de cadastro e se beneficiam do pruning. Em uma dimensão pequena isso é opcional;
 --     a escolha está documentada no README.
 --   * Clusterizada por país e segmento, que são os filtros mais usados nos dashboards.
+--   * No sandbox do BigQuery (ver macro is_sandbox) fica sem particionamento: a expiração
+--     de 60 dias por partição apagaria todo cliente cadastrado há mais de 2 meses.
 {{
     config(
         materialized='table',
-        partition_by={
+        partition_by=(none if is_sandbox() else {
             'field': 'registered_month',
             'data_type': 'date',
             'granularity': 'month'
-        },
+        }),
         cluster_by=['country', 'customer_segment']
     )
 }}

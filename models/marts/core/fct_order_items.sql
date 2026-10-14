@@ -9,16 +9,19 @@
 --     por período, então o BigQuery lê só as partições necessárias.
 --   * Clusterizado por status e categoria: são os filtros/agrupamentos mais comuns
 --     depois da data.
+--   * No sandbox do BigQuery (ver macro is_sandbox) a tabela é materializada sem
+--     particionamento e sem incremental: o sandbox expira partições com mais de 60 dias
+--     e apagaria o histórico. Fora do sandbox valem as decisões acima.
 {{
     config(
-        materialized='incremental',
+        materialized=('table' if is_sandbox() else 'incremental'),
         incremental_strategy='insert_overwrite',
-        partition_by={
+        partition_by=(none if is_sandbox() else {
             'field': 'order_date',
             'data_type': 'date',
             'granularity': 'day',
             'copy_partitions': true
-        },
+        }),
         cluster_by=['order_item_status', 'product_category'],
         on_schema_change='append_new_columns'
     )
