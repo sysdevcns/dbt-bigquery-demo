@@ -1,0 +1,56 @@
+version: 2
+
+models:
+  - name: int_order_items__enriched
+    description: >
+      Camada Cleansed/Silver. Item de pedido com atributos de produto e regras de negócio
+      aplicadas (reconhecimento de receita, margem bruta, flags de cancelamento/devolução).
+    columns:
+      - name: order_item_id
+        data_tests:
+          - unique
+          - not_null
+      - name: order_date
+        description: Data do pedido (derivada de ordered_at). Chave de partição usada nos marts.
+        data_tests:
+          - not_null
+      - name: is_valid_sale
+        description: Verdadeiro quando o item conta como venda (não cancelado nem devolvido).
+        data_tests:
+          - not_null
+      - name: net_revenue
+        description: Receita líquida reconhecida (sale_price se venda válida, senão 0).
+        data_tests:
+          - not_null
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                inclusive: true
+      - name: gross_margin
+        description: sale_price - custo do produto.
+      - name: product_category
+        description: Categoria do produto (pode ser nula se o produto não existir no catálogo).
+
+  - name: int_orders__aggregated
+    description: >
+      Camada Cleansed/Silver. Pedido consolidado a partir dos itens, com situação derivada
+      e medidas financeiras somadas.
+    columns:
+      - name: order_id
+        data_tests:
+          - unique
+          - not_null
+      - name: user_id
+        data_tests:
+          - not_null
+      - name: item_count
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 1
+                inclusive: true
+      - name: order_status
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['complete', 'in_progress', 'cancelled', 'returned', 'partially_returned']
